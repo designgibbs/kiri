@@ -8,9 +8,9 @@
 <script type="module">
   import { KIRI } from 'https://grid.space/code/kiri.js';
 
-  // Initialize KIRI with Bambu Lab X1C-like settings
+  // Initialize KIRI with your GitHub Pages as baseURL to load wasm locally
   const kiri = new KIRI({
-    baseURL: 'https://grid.space/code/',
+    baseURL: 'https://designgibbs.github.io/',  // your GitHub Pages root URL
     mode: 'FDM',
     config: {
       device: {
@@ -44,22 +44,23 @@
       // Decode base64 STL string to Uint8Array
       const decoded = Uint8Array.from(atob(event.data.stl), c => c.charCodeAt(0));
 
-      // Load STL
+      // Load STL model into KIRI
       await kiri.api.load({ name: 'model.stl', array: decoded });
 
-      // Slice
+      // Run slicing process
       await kiri.api.slice();
 
-      // Export stats
+      // Export print statistics
       const stats = kiri.api.export();
 
-      // Post print time (minutes) and filament weight (grams) back to parent
+      // Send results back to parent window
       parent.postMessage({
-        printTime: Math.ceil(stats.time / 60),
-        grams: stats.weight.toFixed(1)
+        printTime: Math.ceil(stats.time / 60),  // convert seconds to minutes, rounded up
+        grams: stats.weight.toFixed(1)          // filament weight in grams with 1 decimal
       }, '*');
 
     } catch (err) {
+      // Send error message back to parent window
       parent.postMessage({ error: err.message }, '*');
     }
   });
