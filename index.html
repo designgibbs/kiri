@@ -7,39 +7,67 @@
 </head>
 <body>
 <script>
+  // Initialize Kiri once the global script is loaded
   function initKiri() {
     if (!window.kiri) {
       setTimeout(initKiri, 50);
       return;
     }
+    
     kiri.init({
-      baseURL: 'https://designgibbs.github.io/',
+      baseURL: 'https://designgibbs.github.io/', // Your GitHub Pages root, adjust if needed
       mode: 'FDM',
       config: {
-        device: { bedWidth: 256, bedDepth: 256, bedHeight: 256, nozzle: 0.4, filament: 1.75 },
-        base: { stock: { x: 256, y: 256, z: 256, center: true } },
-        process: { sliceHeight: 0.2, sliceShells: 3, sliceFillSparse: 0.15, sliceFillType: 'hex', sliceSupportEnable: false },
-        print: { printSpeed: 60, retractionSpeed: 25 }
+        device: {
+          bedWidth: 256,
+          bedDepth: 256,
+          bedHeight: 256,
+          nozzle: 0.4,
+          filament: 1.75
+        },
+        base: {
+          stock: { x: 256, y: 256, z: 256, center: true }
+        },
+        process: {
+          sliceHeight: 0.2,
+          sliceShells: 3,
+          sliceFillSparse: 0.15,
+          sliceFillType: 'hex',
+          sliceSupportEnable: false
+        },
+        print: {
+          printSpeed: 60,
+          retractionSpeed: 25
+        }
       },
       onready: () => {
+        // Listen for STL data from parent page
         window.addEventListener('message', async (event) => {
           if (!event.data || !event.data.stl) return;
+
           try {
+            // Decode base64 STL to Uint8Array
             const decoded = Uint8Array.from(atob(event.data.stl), c => c.charCodeAt(0));
+            // Load STL into Kiri slicer
             await kiri.api.load({ name: 'model.stl', array: decoded });
+            // Slice model
             await kiri.api.slice();
+            // Get stats: time (seconds) and weight (grams)
             const stats = kiri.api.export();
+            // Send results back to parent
             parent.postMessage({
-              printTime: Math.ceil(stats.time / 60),
-              grams: stats.weight.toFixed(1)
+              printTime: Math.ceil(stats.time / 60),  // convert seconds to minutes, rounded up
+              grams: stats.weight.toFixed(1)          // 1 decimal place filament weight
             }, '*');
           } catch (e) {
+            // Send error back to parent if slicing failed
             parent.postMessage({ error: e.message }, '*');
           }
         });
       }
     });
   }
+
   initKiri();
 </script>
 </body>
