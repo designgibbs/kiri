@@ -1,63 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Kiri:Moto Headless Slicer</title>
-</head>
+<head><meta charset="UTF-8" /><title>Kiri:Moto Headless Slicer</title></head>
 <body>
-  <script src="https://grid.space/code/kiri.js"></script>
-  <script>
-    let kiriLoaded = false;
+<script type="module">
+  import { KIRI } from 'https://grid.space/code/kiri.js';
 
-    // Initialize Kiri:Moto
-    kiri.init(() => {
-      kiri.driver = 'FDM';
-      kiri.api.mode.set('FDM');
-      kiriLoaded = true;
-    }, { base: "https://grid.space/code/" });
+  const kiri = new KIRI({
+    baseURL: 'https://grid.space/code/',
+    mode: 'FDM',
+    config: {
+      device: {
+        bedWidth: 256,
+        bedDepth: 256,
+        bedHeight: 256,
+        nozzle: 0.4,
+        filament: 1.75
+      },
+      process: {
+        sliceHeight: 0.2,
+        sliceShells: 3,
+        sliceFillSparse: 0.15,
+        sliceFillType: 'hex',
+        sliceSupportEnable: false
+      },
+      print: {
+        printSpeed: 60,
+        retractionSpeed: 25
+      },
+      base: {
+        stock: { x: 256, y: 256, z: 256, center: true }
+      }
+    }
+  });
 
-    // Listen for messages from parent window (Squarespace)
-    window.addEventListener('message', (event) => {
-      if (!kiriLoaded || !event.data || !event.data.stl) return;
+  window.addEventListener('message', async (event) => {
+    if (!event.data || !event.data.stl) return;
 
-      const arrayBuffer = Uint8Array.from(atob(event.data.stl), c => c.charCodeAt(0));
+    const decoded = Uint8Array.from(atob(event.data.stl), c => c.charCodeAt(0));
+    await kiri.api.load({ name: 'model.stl', array: decoded });
+    await kiri.api.slice();
 
-      kiri.api.load({ name: 'model.stl', array: arrayBuffer });
-
-      kiri.api.config({
-        device: {
-          bedWidth: 256,
-          bedDepth: 256,
-          bedHeight: 256,
-          nozzle: 0.4,
-          filament: 1.75,
-        },
-        base: {
-          stock: { x: 256, y: 256, z: 256, center: true }
-        },
-        process: {
-          sliceHeight: 0.2,
-          sliceShells: 3,
-          sliceFillSparse: 0.15,
-          sliceFillType: 'hex',
-          sliceSupportEnable: false,
-        },
-        print: {
-          printSpeed: 60,
-          retractionSpeed: 25,
-        }
-      });
-
-      kiri.api.event.on('done', () => {
-        const stats = kiri.api.export();
-        parent.postMessage({
-          printTime: Math.ceil(stats.time / 60),
-          grams: stats.weight.toFixed(1),
-        }, '*');
-      });
-
-      kiri.api.function('slice');
-    });
-  </script>
+    const stats = kiri.api.export();
+    parent.postMessage({
+      printTime: Math.ceil(stats.time / 60),
+      grams: stats.weight.toFixed(1)
+    }, '*');
+  });
+</script>
 </body>
 </html>
