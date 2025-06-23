@@ -1,75 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8" /><title>Headless Kiri:Moto</title></head>
+<head>
+  <meta charset="UTF-8" />
+  <title>Kiri:Moto Hidden Slicer</title>
+  <style>
+    body, html { margin:0; padding:0; height:100%; overflow:hidden; }
+    #app { width: 100%; height: 100%; display: none; } /* hide UI */
+  </style>
+</head>
 <body>
-<script src="https://grid.space/code/kiri.js"></script>
-<script>
-  console.log("BAMBU MODULE RUNNING");
+  <div id="app"></div>
 
-  // Wait for kiri to be ready
-  setTimeout(() => {
-    if (!kiri) {
-      console.error("Kiri:Moto not loaded");
-      return;
-    }
+  <script src="https://grid.space/code/kiri.js"></script>
+  <script>
+    console.log('BAMBU MODULE RUNNING');
 
-    console.log("✅ Headless Kiri:Moto Loaded");
+    // Initialize Kiri:Moto with your Bambu P1S .20mm standard profile
+    const settings = {
+      printer: 'bambu-p1s',
+      profile: 'bambu-20-standard', // Example name, adjust based on your profile setup
+      units: 'mm',
+      filamentDiameter: 1.75,
+      layerHeight: 0.2,
+      infillPercent: 15,
+      printSpeed: 60
+    };
 
-    kiri.mode('slice');
-    kiri.sync();
+    // Wait until Kiri is ready
+    kiri.ready(() => {
+      console.log('✅ Headless Kiri:Moto Loaded');
 
-    window.addEventListener("message", async (event) => {
-      const file = event.data;
-      if (!(file instanceof File)) {
-        console.log("Ignoring non-file message");
-        return;
-      }
-      console.log("Received STL file:", file.name);
+      // Hide the UI immediately
+      document.getElementById('app').style.display = 'none';
 
-      try {
-        const buffer = await file.arrayBuffer();
+      window.addEventListener('message', async (event) => {
+        if (!event.data || !event.data.type) return;
+        if (event.data.type === 'slice-stl') {
+          try {
+            const { fileBuffer } = event.data;
 
-        const settings = {
-          process: {
-            sliceHeight: 0.2,
-            sliceShells: 2,
-            sliceTopLayers: 5,
-            sliceBottomLayers: 5,
-            sliceFillSparse: 15,
-            sliceFillType: "hex",
-            sliceSupportEnable: false
-          },
-          device: {
-            bedWidth: 256,
-            bedDepth: 256,
-            bedHeight: 256,
-            extrudeFilament: 1.75,
-            nozzle: 0.4
-          },
-          processName: "bambu-0.20mm-standard"
-        };
+            // Load the STL data (expecting ArrayBuffer)
+            await kiri.sliceBuffer(fileBuffer, settings);
 
-        console.log("Slicing started...");
-        const result = await kiri.sliceFile(buffer, settings);
+            // Get slicing results: estimated print time (sec) and filament used (mm)
+            const timeSec = kiri.time();
+            const filamentMM = kiri.filament();
+            const filamentM = filamentMM / 1000;
 
-        const stats = result.stats || {};
-        const printTimeMin = (stats.printTime || 0).toFixed(1);
-        const filamentMeters = ((stats.filament || 0) / 1000).toFixed(2);
-
-        console.log(`Slicing done. Time: ${printTimeMin} min, Filament: ${filamentMeters} m`);
-
-        parent.postMessage({
-          printTimeMinutes: printTimeMin,
-          filamentMeters: filamentMeters,
-          stats: stats
-        }, "*");
-
-      } catch(e) {
-        console.error("Error slicing STL:", e);
-        parent.postMessage({ error: e.message }, "*");
-      }
+            // Send back results to parent window
+            window.parent.postMessage({
+              type: 'slice-result',
+              printTimeSeconds: timeSec,
+              filamentMM,
+              filamentM
+            }, '*');
+          } catch (e) {
+            window.parent.postMessage({ type: 'slice-error', error: e.message }, '*');
+          }
+        }
+      });
     });
-  }, 1000);
-</script>
+  </script>
 </body>
 </html>
