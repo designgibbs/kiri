@@ -2,44 +2,83 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Kiri:Moto Headless</title>
+  <title>Kiri:Moto Headless Slicer</title>
 </head>
 <body>
-<script type="module">
-  import { KIRI } from 'https://grid.space/code/kiri.module.js';
+<script src="https://grid.space/code/kiri.js"></script>
 
+<script>
   console.log('Headless Kiri:Moto Loaded');
 
-  const app = new KIRI();
+  // Create a new Kiri instance (non-module, global "kiri" constructor)
+  const app = new kiri();
 
+  // Start the slicer app
   app.start();
 
-  window.addEventListener('message', async (event) => {
-    if (!event.data?.stl) return;
+  // Define Bambu Lab P1S 0.20mm standard print profile
+  // (You can customize this JSON or load from Kiri presets if available)
+  const bambuP1SProfile = {
+    printer: 'Bambu Lab P1S',
+    layerHeight: 0.20,
+    speed: 60,
+    filamentDiameter: 1.75,
+    nozzleDiameter: 0.4,
+    temperature: 205,
+    bedTemperature: 60,
+    infill: 15,
+    retraction: 5,
+    filamentDensity: 1.24,  // PLA approx
+    // Add or adjust settings as needed
+  };
 
+  // Function to run slicing and post back results
+  async function sliceSTL(base64stl) {
     try {
-      const base64 = event.data.stl;
-      const binaryStr = atob(base64);
-      const len = binaryStr.length;
-      const buffer = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        buffer[i] = binaryStr.charCodeAt(i);
-      }
+      // Load STL into Kiri workspace
+      await app.work.loadSTLBase64(base64stl);
 
-      app.clear();
-      app.addPart(buffer.buffer, { filename: 'upload.stl' });
+      // Apply the Bambu profile settings
+      app.work.set('printer', bambuP1SProfile.printer);
+      app.work.set('layerHeight', bambuP1SProfile.layerHeight);
+      app.work.set('speed', bambuP1SProfile.speed);
+      app.work.set('filamentDiameter', bambuP1SProfile.filamentDiameter);
+      app.work.set('nozzleDiameter', bambuP1SProfile.nozzleDiameter);
+      app.work.set('temperature', bambuP1SProfile.temperature);
+      app.work.set('bedTemperature', bambuP1SProfile.bedTemperature);
+      app.work.set('infill', bambuP1SProfile.infill);
+      app.work.set('retraction', bambuP1SProfile.retraction);
+      app.work.set('filamentDensity', bambuP1SProfile.filamentDensity);
 
-      await app.slice();
+      // Run slicing
+      await app.work.slice();
 
-      const stats = app.stats || {};
+      // Extract results
+      const stats = app.work.stats;
+      // stats.filament is in grams by default
+      // stats.length is filament length in millimeters
 
+      const filamentLengthMeters = (stats.length || 0) / 1000;
+      const printTimeMinutes = (stats.time || 0) / 60;
+
+      // Send results back to parent window
       window.parent.postMessage({
-        printTime: Math.round(stats.time || 0),
-        filamentGrams: (stats.filament || 0).toFixed(1)
+        printTime: printTimeMinutes.toFixed(1),
+        filamentGrams: (stats.filament || 0).toFixed(1),
+        filamentLengthMeters: filamentLengthMeters.toFixed(2)
       }, '*');
+
     } catch (err) {
-      console.error('Error slicing:', err);
+      console.error('Slicing error:', err);
       window.parent.postMessage({ error: err.message }, '*');
+    }
+  }
+
+  // Listen for messages from parent with STL base64 data
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.stl) {
+      console.log('Received STL data, starting slice...');
+      sliceSTL(event.data.stl);
     }
   });
 </script>
