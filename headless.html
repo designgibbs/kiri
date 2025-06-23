@@ -1,40 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Headless Kiri:Moto</title>
-</head>
+<head><meta charset="UTF-8" /><title>Headless Kiri:Moto</title></head>
 <body>
-<script type="module">
-  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js';
-  window.THREE = THREE;  // expose THREE globally for kiri.module.js
+<script src="https://grid.space/code/kiri.js"></script>
+<script>
+  console.log("BAMBU MODULE RUNNING");
 
-  import("https://grid.space/code/kiri.module.js").then(({ KIRI }) => {
+  // Wait for kiri to be ready
+  setTimeout(() => {
+    if (!kiri) {
+      console.error("Kiri:Moto not loaded");
+      return;
+    }
+
     console.log("✅ Headless Kiri:Moto Loaded");
 
-    const engine = KIRI.newEngine();
-    engine.sync();
+    kiri.mode('slice');
+    kiri.sync();
 
     window.addEventListener("message", async (event) => {
       const file = event.data;
       if (!(file instanceof File)) {
-        console.log("Ignoring message: not a File");
+        console.log("Ignoring non-file message");
         return;
       }
-
-      console.log("📥 Received STL file:", file.name);
+      console.log("Received STL file:", file.name);
 
       try {
         const buffer = await file.arrayBuffer();
 
-        // Bambu P1S .20mm standard print profile settings (approx)
         const settings = {
           process: {
             sliceHeight: 0.2,
             sliceShells: 2,
             sliceTopLayers: 5,
             sliceBottomLayers: 5,
-            sliceFillSparse: 15,  // 15% infill
+            sliceFillSparse: 15,
             sliceFillType: "hex",
             sliceSupportEnable: false
           },
@@ -48,31 +49,27 @@
           processName: "bambu-0.20mm-standard"
         };
 
-        console.log("🧮 Starting slicing...");
-        const result = await engine.sliceFile(buffer, settings);
+        console.log("Slicing started...");
+        const result = await kiri.sliceFile(buffer, settings);
 
         const stats = result.stats || {};
         const printTimeMin = (stats.printTime || 0).toFixed(1);
         const filamentMeters = ((stats.filament || 0) / 1000).toFixed(2);
 
-        console.log(`✅ Slicing done. Time: ${printTimeMin} min, Filament: ${filamentMeters} m`);
+        console.log(`Slicing done. Time: ${printTimeMin} min, Filament: ${filamentMeters} m`);
 
-        parent.postMessage(
-          {
-            printTimeMinutes: printTimeMin,
-            filamentMeters: filamentMeters,
-            stats: stats
-          },
-          "*"
-        );
-      } catch (error) {
-        console.error("❌ Error slicing STL:", error);
-        parent.postMessage({ error: error.message }, "*");
+        parent.postMessage({
+          printTimeMinutes: printTimeMin,
+          filamentMeters: filamentMeters,
+          stats: stats
+        }, "*");
+
+      } catch(e) {
+        console.error("Error slicing STL:", e);
+        parent.postMessage({ error: e.message }, "*");
       }
     });
-  }).catch(e => {
-    console.error("❌ Failed to load Kiri:Moto module:", e);
-  });
+  }, 1000);
 </script>
 </body>
 </html>
