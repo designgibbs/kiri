@@ -8,12 +8,11 @@
     <script type="module">
       console.log("✅ Headless Kiri:Moto Loaded");
 
-      // Load Kiri:Moto in module form
       import("https://grid.space/code/kiri.module.js").then(({ KIRI }) => {
         console.log("🧠 KIRI module loaded");
 
         const engine = KIRI.newEngine();
-        engine.sync(); // Ensure ready before use
+        engine.sync();
 
         window.addEventListener("message", async (event) => {
           const file = event.data;
@@ -25,7 +24,6 @@
 
           const settings = {
             process: {
-              // Simulate Bambu Lab 0.20mm standard profile
               sliceHeight: 0.2,
               sliceShells: 2,
               sliceTopLayers: 5,
@@ -54,7 +52,6 @@
 
           console.log(`✅ Slicing complete: ${minutes} min, ${meters} m`);
 
-          // Send back to parent
           parent.postMessage(
             {
               printTimeMinutes: minutes,
