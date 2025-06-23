@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Headless Kiri:Moto</title>
+</head>
+<body>
+  <h2>🧵 Bambu Print Estimator (0.20mm)</h2>
+  <input type="file" id="fileInput" accept=".stl" />
+  <p id="status">Upload an STL file…</p>
+
+  <!-- Load Kiri:Moto core -->
+  <script src="https://grid.space/code/kiri.js"></script>
+  <script>
+    const status = document.getElementById('status');
+
+    // Wait for Kiri:Moto to load
+    window.kiri.init = function () {
+      console.log("✅ Kiri:Moto Loaded");
+      status.textContent = "Ready. Upload a file.";
+    };
+
+    document.getElementById('fileInput').addEventListener('change', function (event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        status.textContent = "⏳ Slicing… please wait.";
+
+        const stl = new Uint8Array(e.target.result);
+        const settings = kiri.conf().export();
+        settings.process = {
+          sliceHeight: 0.2,
+          sliceShells: 2,
+          sliceFillType: 'hex',
+          sliceFillSparse: 0.15,
+          sliceSolidLayers: 3,
+          sliceTopLayers: 3,
+          sliceBottomLayers: 3
+        };
+        settings.output = {
+          outputFanLayer: 1,
+          outputBedTemp: 60,
+          outputTemp: 210,
+          outputShellSpeed: 60,
+          outputFillSpeed: 60,
+          outputSeekSpeed: 100,
+          outputLayerTime: 5
+        };
+        settings.device = {
+          bedWidth: 256,
+          bedDepth: 256,
+          bedHeight: 256,
+          nozzle: 0.4,
+          filamentSize: 1.75
+        };
+        kiri.load({
+          format: "stl",
+          name: file.name,
+          data: stl
+        });
+        kiri.mode('FDM');
+        kiri.setup(settings);
+        kiri.slice();
+        kiri.on('done', update => {
+          const stats = kiri.stats();
+          const time = (stats.print.time / 60).toFixed(1); // seconds to minutes
+          const filament = (stats.print.distance / 1000).toFixed(2); // mm to meters
+          status.textContent = `✅ Print Time: ${time} min, Filament: ${filament} m`;
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  </script>
+</body>
+</html>
