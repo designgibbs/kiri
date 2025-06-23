@@ -1,116 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Kiri:Moto Headless Slicer</title>
-
-<!-- Hide all UI -->
-<style>
-  html, body, #container, canvas, #kiri-top, #kiri-bottom, #kiri-left, #kiri-right {
-    display: none !important;
-  }
-</style>
-
+  <meta charset="UTF-8" />
+  <title>Kiri:Moto Headless Minimal</title>
+  <style>
+    /* Hide all Kiri UI containers */
+    #container, #kiri-top, #kiri-bottom, #kiri-left, #kiri-right {
+      display: none !important;
+    }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+  </style>
 </head>
 <body>
+  <h1>Kiri:Moto Headless Minimal</h1>
 
-<div id="container"></div>
+  <input type="file" id="fileInput" accept=".stl" />
+  <p>Upload STL to slice and get estimates in console.</p>
 
-<script src="https://grid.space/code/kiri.js"></script>
-<script>
-  console.log("BAMBU MODULE RUNNING");
+  <!-- Minimal DOM elements Kiri expects -->
+  <div id="container"></div>
+  <div id="kiri-top"></div>
+  <div id="kiri-bottom"></div>
+  <div id="kiri-left"></div>
+  <div id="kiri-right"></div>
 
-  // Wait for Kiri to be ready
-  function waitForKiri() {
-    return new Promise(resolve => {
-      let tries = 0;
-      (function check() {
-        if (window.kiri && window.kiri.init) {
-          resolve();
-        } else if (tries++ < 100) {
-          setTimeout(check, 50);
-        } else {
-          console.error("Kiri failed to load.");
-        }
-      })();
-    });
-  }
+  <!-- Kiri:Moto core script (UI-hidden) -->
+  <script src="https://cdn.jsdelivr.net/gh/mrbeam/kiri@latest/kiri.ui-hidden.js"></script>
 
-  async function run() {
-    await waitForKiri();
+  <script>
+    console.log("✅ Bambu UI-Hidden Kiri:Moto Running");
 
-    // Init Kiri in hidden UI mode
-    kiri.init({
-      mode: 'FDM', // FDM slicing mode
-      profile: 'bambu20', // Custom profile name (we'll define)
-      ui: false // Not showing UI (but we hide with CSS anyway)
-    });
-
-    // Add Bambu P1S 0.20mm standard profile
-    kiri.conf.profile.bambu20 = {
-      layerHeight: 0.20,
-      nozzleSize: 0.40,
-      printSpeed: 60,
-      filamentDiameter: 1.75,
-      filamentDensity: 1.24, // PLA approx g/cm3
-      extrusionMultiplier: 1.0,
-      travelSpeed: 150,
-      infillDensity: 0.15,
-      retractionDistance: 5,
-      retractionSpeed: 40,
-      nozzleTemp: 205,
-      bedTemp: 60,
-      // Other params can be added as needed
-    };
-
-    console.log("✅ Headless Kiri:Moto Loaded");
-
-    // Listen for STL file data from parent
-    window.addEventListener("message", async (event) => {
-      if (!event.data || event.data.type !== 'stl-file') return;
-
-      try {
-        console.log("Received STL file data, slicing...");
-
-        // Load STL file as ArrayBuffer
-        const fileBuffer = event.data.buffer;
-
-        // Load the STL mesh into Kiri
-        await kiri.open(fileBuffer);
-
-        // Slice the model with bambu20 profile
-        await kiri.slice({ profile: 'bambu20' });
-
-        // After slicing, extract info
-        const timeSeconds = kiri.getTime();
-        const filamentMm = kiri.getFilament();
-
-        // Convert filament length to meters
-        const filamentMeters = filamentMm / 1000;
-
-        console.log("Print time (seconds):", timeSeconds);
-        console.log("Filament length (meters):", filamentMeters.toFixed(2));
-
-        // Post results back to parent
-        window.parent.postMessage({
-          type: 'slice-result',
-          timeSeconds,
-          filamentMeters
-        }, "*");
-
-      } catch(e) {
-        console.error("Error during slicing:", e);
-        window.parent.postMessage({
-          type: 'slice-error',
-          message: e.message || e.toString()
-        }, "*");
+    // Wait for Kiri to be ready
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!window.kiri) {
+        console.error("❌ Kiri:Moto not loaded");
+        return;
       }
-    }, false);
-  }
 
-  run();
-</script>
+      // Init Kiri with UI hidden
+      kiri.ui.hidden();
 
+      const fileInput = document.getElementById("fileInput");
+
+      fileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const arrayBuffer = event.target.result;
+          console.log("Loaded STL file, parsing...");
+
+          try {
+            // Create new job from STL data
+            const job = new kiri.api.Job();
+            job.load(arrayBuffer, file.name, {format: "stl"});
+            console.log("STL loaded into job:", job);
+
+            // Add job to Kiri queue and slice it
+            kiri.queue.add(job);
+
+            console.log("Starting slicing...");
+            kiri.slice().then(() => {
+              console.log("✅ Slicing complete");
+              const time = job.time;       // in seconds
+              const filament = job.filament; // in mm
+
+              console.log(`Estimated print time: ${(time/60).toFixed(1)} min`);
+              console.log(`Estimated filament length: ${filament.toFixed(0)} mm`);
+
+              // You can extend here to postMessage or update UI
+            }).catch(err => {
+              console.error("❌ Slicing error:", err);
+            });
+
+          } catch(err) {
+            console.error("❌ Error loading STL:", err);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    });
+  </script>
 </body>
 </html>
