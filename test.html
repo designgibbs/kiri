@@ -4,22 +4,47 @@
   <meta charset="UTF-8" />
   <title>Kiri:Moto Simple Slicer Quote</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
-    #status { margin-top: 1rem; }
-    button, input { font-size: 1rem; padding: 0.5rem; }
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    #status {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    button,
+    input {
+      font-size: 1rem;
+      padding: 0.5rem;
+      margin-top: 1rem;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 1rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      margin-top: 1rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
   </style>
 </head>
 <body>
-
   <h1>Kiri:Moto Slicer Quote Demo</h1>
+
   <input type="file" id="fileInput" accept=".stl" />
+  <br />
   <button id="sliceBtn" disabled>Slice & Quote</button>
+
   <div id="status"></div>
   <pre id="output"></pre>
 
-  <script type="module">
-    import KIRI from 'https://cdn.jsdelivr.net/npm/kiri-moto@0.24.12/kiri.min.js';
+  <!-- Load Kiri:Moto global script -->
+  <script src="https://cdn.jsdelivr.net/npm/kiri-moto@0.24.12/kiri.min.js"></script>
 
+  <script>
     const fileInput = document.getElementById('fileInput');
     const sliceBtn = document.getElementById('sliceBtn');
     const statusDiv = document.getElementById('status');
@@ -32,6 +57,10 @@
         sliceBtn.disabled = false;
         statusDiv.textContent = `Loaded file: ${fileInput.files[0].name}`;
         outputPre.textContent = '';
+      } else {
+        sliceBtn.disabled = true;
+        statusDiv.textContent = '';
+        outputPre.textContent = '';
       }
     });
 
@@ -43,7 +72,7 @@
       const file = fileInput.files[0];
       const arrayBuffer = await file.arrayBuffer();
 
-      if (!engine) engine = new KIRI.Driver();
+      if (!engine) engine = new kiri.Driver();
 
       statusDiv.textContent = 'Loading STL...';
       try {
@@ -51,13 +80,14 @@
 
         statusDiv.textContent = 'Slicing... (this may take a while)';
 
+        // Set slicing parameters (adjust as needed)
         engine.settings.set({
           layerHeight: 0.2,
           nozzleDiameter: 0.4,
           printSpeed: 60,
           infillDensity: 0.15,
           filamentDiameter: 1.75,
-          filamentDensity: 1.24
+          filamentDensity: 1.24, // PLA density approx
         });
 
         const result = await engine.slice();
@@ -66,12 +96,11 @@
         const filamentMeters = (result.stats.filament / 1000).toFixed(2);
 
         statusDiv.textContent = 'Slice complete!';
-        outputPre.textContent = 
+        outputPre.textContent =
           `Estimated Print Time: ${timeMinutes} minutes\n` +
           `Estimated Filament Usage: ${filamentMeters} meters\n` +
           `Layers: ${result.stats.layers}\n` +
           `Model Volume: ${result.stats.volume.toFixed(0)} mm³`;
-
       } catch (err) {
         statusDiv.textContent = 'Error during slicing: ' + err.message;
       }
