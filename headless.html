@@ -1,38 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8" /><title>Headless Kiri:Moto</title></head>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Kiri:Moto Headless</title>
+  <script>
+    console.log("✅ Headless Kiri:Moto Loaded");
+    window.addEventListener("message", async (event) => {
+      if (!event.data || !event.data.stl) return;
+
+      console.log("📦 STL received from parent");
+      const base64 = event.data.stl;
+      const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
+      // Load Kiri:Moto
+      if (typeof KIRI === "undefined") {
+        await import('./kiri.js'); // Local copy from GitHub Pages
+      }
+
+      const device = KIRI.driver.FDM;
+      const settings = KIRI.conf(); // get default config
+      const proc = settings.process;
+      const mode = settings.mode;
+
+      // Apply Bambu P1S 0.20mm profile
+      mode.device = "FDM";
+      mode.mode = "FDM";
+      mode.sproc = "bambu-p1s";
+      proc.sliceHeight = 0.20;
+      proc.sliceShells = 2;
+      proc.sliceFillSparse = 0.15;
+      proc.sliceSpeedPrint = 60;
+      proc.sliceSupportEnable = true;
+
+      console.log("⚙️ Slicing started...");
+      const widgets = KIRI.codec.decode(binary.buffer);
+      KIRI.platform.clear();
+      widgets.forEach(w => KIRI.platform.add(w));
+      await KIRI.slice();
+
+      const stats = KIRI.platform.stats();
+      const timeMinutes = Math.round(stats.time / 60);
+      const grams = Math.round(stats.weight);
+      const meters = (stats.filament / 1000).toFixed(2);
+
+      console.log("✅ Slicing complete");
+      parent.postMessage({ printTime: timeMinutes, grams, meters }, "*");
+    });
+  </script>
+</head>
 <body>
-<script src="https://grid.space/code/kiri.js"></script>
-<script>
-  console.log("Headless Kiri:Moto Loaded");
-  // Start Kiri in headless mode (no UI)
-  kiri.start();
-
-  // Example: listen for messages with base64 STL to slice
-  window.addEventListener('message', e => {
-    if (e.data && e.data.stl) {
-      const base64stl = e.data.stl;
-      (async () => {
-        try {
-          await kiri.work.loadSTLBase64(base64stl);
-          await kiri.work.slice();
-
-          const stats = kiri.work.stats;
-          const filamentLengthMeters = (stats.length || 0) / 1000;
-          const printTimeMinutes = (stats.time || 0) / 60;
-
-          window.parent.postMessage({
-            filamentLengthMeters: filamentLengthMeters.toFixed(2),
-            printTimeMinutes: printTimeMinutes.toFixed(1),
-            filamentGrams: (stats.filament || 0).toFixed(1)
-          }, '*');
-        } catch (err) {
-          console.error("Slicing error:", err);
-          window.parent.postMessage({ error: err.message }, '*');
-        }
-      })();
-    }
-  });
-</script>
 </body>
 </html>
