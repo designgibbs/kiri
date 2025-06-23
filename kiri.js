@@ -1,0 +1,1 @@
+// Simulated kiri.js content
