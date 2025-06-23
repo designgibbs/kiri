@@ -1,1 +1,1 @@
-// Simulated kiri-worker.js content
+// Real kiri-worker.js should be included here.
