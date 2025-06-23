@@ -1,53 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <title>Kiri:Moto Headless</title>
-  <script>
-    console.log("✅ Headless Kiri:Moto Loaded");
-    window.addEventListener("message", async (event) => {
-      if (!event.data || !event.data.stl) return;
-
-      console.log("📦 STL received from parent");
-      const base64 = event.data.stl;
-      const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-      // Load Kiri:Moto
-      if (typeof KIRI === "undefined") {
-        await import('./kiri.js'); // Local copy from GitHub Pages
-      }
-
-      const device = KIRI.driver.FDM;
-      const settings = KIRI.conf(); // get default config
-      const proc = settings.process;
-      const mode = settings.mode;
-
-      // Apply Bambu P1S 0.20mm profile
-      mode.device = "FDM";
-      mode.mode = "FDM";
-      mode.sproc = "bambu-p1s";
-      proc.sliceHeight = 0.20;
-      proc.sliceShells = 2;
-      proc.sliceFillSparse = 0.15;
-      proc.sliceSpeedPrint = 60;
-      proc.sliceSupportEnable = true;
-
-      console.log("⚙️ Slicing started...");
-      const widgets = KIRI.codec.decode(binary.buffer);
-      KIRI.platform.clear();
-      widgets.forEach(w => KIRI.platform.add(w));
-      await KIRI.slice();
-
-      const stats = KIRI.platform.stats();
-      const timeMinutes = Math.round(stats.time / 60);
-      const grams = Math.round(stats.weight);
-      const meters = (stats.filament / 1000).toFixed(2);
-
-      console.log("✅ Slicing complete");
-      parent.postMessage({ printTime: timeMinutes, grams, meters }, "*");
-    });
-  </script>
 </head>
 <body>
+<script src="kiri.js"></script>
+<script>
+  console.log("✅ Headless Kiri:Moto Loaded");
+
+  window.KIRI?.ready(() => {
+    const engine = KIRI.work;
+
+    // Listen for file upload from Squarespace iframe
+    window.addEventListener("message", async (e) => {
+      const { type, file } = e.data || {};
+      if (type !== "slice" || !file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function (event) {
+        const arrayBuffer = event.target.result;
+
+        engine.init({
+          platform: { x: 256, y: 256 }, // Bambu P1S default
+          device: "FDM",
+          mode: "FDM",
+          fdm: {
+            nozzle: 0.4,
+            sliceHeight: 0.2,
+            shellCount: 2,
+            fillDensity: 0.15,
+            fillType: "hex",
+            printSpeed: 60,
+            material: "PLA",
+            filamentSize: 1.75,
+            filamentDensity: 1.24
+          }
+        });
+
+        const mesh = await KIRI.codec.stl.toObject(arrayBuffer);
+        engine.slice([mesh], (data) => {
+          const { stats } = data;
+
+          // Calculate filament length in meters
+          const mmLength = stats.filament || 0;
+          const meters = (mmLength / 1000).toFixed(2);
+          const minutes = Math.round(stats.time / 60);
+
+          // Send result to parent
+          parent.postMessage({
+            type: "result",
+            time: minutes,
+            length: meters
+          }, "*");
+        });
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  });
+</script>
 </body>
 </html>
