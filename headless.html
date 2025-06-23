@@ -10,14 +10,11 @@
 <script>
   console.log('Headless Kiri:Moto Loaded');
 
-  // Create a new Kiri instance (non-module, global "kiri" constructor)
-  const app = new kiri();
+  // Start the global singleton Kiri app
+  kiri.start();
 
-  // Start the slicer app
-  app.start();
+  const app = kiri;
 
-  // Define Bambu Lab P1S 0.20mm standard print profile
-  // (You can customize this JSON or load from Kiri presets if available)
   const bambuP1SProfile = {
     printer: 'Bambu Lab P1S',
     layerHeight: 0.20,
@@ -28,17 +25,13 @@
     bedTemperature: 60,
     infill: 15,
     retraction: 5,
-    filamentDensity: 1.24,  // PLA approx
-    // Add or adjust settings as needed
+    filamentDensity: 1.24
   };
 
-  // Function to run slicing and post back results
   async function sliceSTL(base64stl) {
     try {
-      // Load STL into Kiri workspace
       await app.work.loadSTLBase64(base64stl);
 
-      // Apply the Bambu profile settings
       app.work.set('printer', bambuP1SProfile.printer);
       app.work.set('layerHeight', bambuP1SProfile.layerHeight);
       app.work.set('speed', bambuP1SProfile.speed);
@@ -50,18 +43,13 @@
       app.work.set('retraction', bambuP1SProfile.retraction);
       app.work.set('filamentDensity', bambuP1SProfile.filamentDensity);
 
-      // Run slicing
       await app.work.slice();
 
-      // Extract results
       const stats = app.work.stats;
-      // stats.filament is in grams by default
-      // stats.length is filament length in millimeters
 
       const filamentLengthMeters = (stats.length || 0) / 1000;
       const printTimeMinutes = (stats.time || 0) / 60;
 
-      // Send results back to parent window
       window.parent.postMessage({
         printTime: printTimeMinutes.toFixed(1),
         filamentGrams: (stats.filament || 0).toFixed(1),
@@ -74,7 +62,6 @@
     }
   }
 
-  // Listen for messages from parent with STL base64 data
   window.addEventListener('message', (event) => {
     if (event.data && event.data.stl) {
       console.log('Received STL data, starting slice...');
