@@ -1,71 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Kiri:Moto Headless Slicer</title>
-</head>
+<head><meta charset="utf-8" /><title>Headless Kiri:Moto</title></head>
 <body>
 <script src="https://grid.space/code/kiri.js"></script>
-
 <script>
-  console.log('Headless Kiri:Moto Loaded');
-
-  // Start the global singleton Kiri app
+  console.log("Headless Kiri:Moto Loaded");
+  // Start Kiri in headless mode (no UI)
   kiri.start();
 
-  const app = kiri;
+  // Example: listen for messages with base64 STL to slice
+  window.addEventListener('message', e => {
+    if (e.data && e.data.stl) {
+      const base64stl = e.data.stl;
+      (async () => {
+        try {
+          await kiri.work.loadSTLBase64(base64stl);
+          await kiri.work.slice();
 
-  const bambuP1SProfile = {
-    printer: 'Bambu Lab P1S',
-    layerHeight: 0.20,
-    speed: 60,
-    filamentDiameter: 1.75,
-    nozzleDiameter: 0.4,
-    temperature: 205,
-    bedTemperature: 60,
-    infill: 15,
-    retraction: 5,
-    filamentDensity: 1.24
-  };
+          const stats = kiri.work.stats;
+          const filamentLengthMeters = (stats.length || 0) / 1000;
+          const printTimeMinutes = (stats.time || 0) / 60;
 
-  async function sliceSTL(base64stl) {
-    try {
-      await app.work.loadSTLBase64(base64stl);
-
-      app.work.set('printer', bambuP1SProfile.printer);
-      app.work.set('layerHeight', bambuP1SProfile.layerHeight);
-      app.work.set('speed', bambuP1SProfile.speed);
-      app.work.set('filamentDiameter', bambuP1SProfile.filamentDiameter);
-      app.work.set('nozzleDiameter', bambuP1SProfile.nozzleDiameter);
-      app.work.set('temperature', bambuP1SProfile.temperature);
-      app.work.set('bedTemperature', bambuP1SProfile.bedTemperature);
-      app.work.set('infill', bambuP1SProfile.infill);
-      app.work.set('retraction', bambuP1SProfile.retraction);
-      app.work.set('filamentDensity', bambuP1SProfile.filamentDensity);
-
-      await app.work.slice();
-
-      const stats = app.work.stats;
-
-      const filamentLengthMeters = (stats.length || 0) / 1000;
-      const printTimeMinutes = (stats.time || 0) / 60;
-
-      window.parent.postMessage({
-        printTime: printTimeMinutes.toFixed(1),
-        filamentGrams: (stats.filament || 0).toFixed(1),
-        filamentLengthMeters: filamentLengthMeters.toFixed(2)
-      }, '*');
-
-    } catch (err) {
-      console.error('Slicing error:', err);
-      window.parent.postMessage({ error: err.message }, '*');
-    }
-  }
-
-  window.addEventListener('message', (event) => {
-    if (event.data && event.data.stl) {
-      console.log('Received STL data, starting slice...');
-      sliceSTL(event.data.stl);
+          window.parent.postMessage({
+            filamentLengthMeters: filamentLengthMeters.toFixed(2),
+            printTimeMinutes: printTimeMinutes.toFixed(1),
+            filamentGrams: (stats.filament || 0).toFixed(1)
+          }, '*');
+        } catch (err) {
+          console.error("Slicing error:", err);
+          window.parent.postMessage({ error: err.message }, '*');
+        }
+      })();
     }
   });
 </script>
