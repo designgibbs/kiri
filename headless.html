@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Kiri:Moto Hidden Slicer</title>
-  <style>
-    body, html { margin:0; padding:0; height:100%; overflow:hidden; }
-    #app { width: 100%; height: 100%; display: none; } /* hide UI */
-  </style>
+  <style> body, html { margin:0; padding:0; height:100%; overflow:hidden; } #app { display:none; } </style>
 </head>
 <body>
   <div id="app"></div>
@@ -15,10 +12,9 @@
   <script>
     console.log('BAMBU MODULE RUNNING');
 
-    // Initialize Kiri:Moto with your Bambu P1S .20mm standard profile
     const settings = {
       printer: 'bambu-p1s',
-      profile: 'bambu-20-standard', // Example name, adjust based on your profile setup
+      profile: 'bambu-20-standard', // Adjust if needed
       units: 'mm',
       filamentDiameter: 1.75,
       layerHeight: 0.2,
@@ -26,28 +22,23 @@
       printSpeed: 60
     };
 
-    // Wait until Kiri is ready
     kiri.ready(() => {
       console.log('✅ Headless Kiri:Moto Loaded');
-
-      // Hide the UI immediately
       document.getElementById('app').style.display = 'none';
 
       window.addEventListener('message', async (event) => {
         if (!event.data || !event.data.type) return;
+
         if (event.data.type === 'slice-stl') {
           try {
             const { fileBuffer } = event.data;
 
-            // Load the STL data (expecting ArrayBuffer)
             await kiri.sliceBuffer(fileBuffer, settings);
 
-            // Get slicing results: estimated print time (sec) and filament used (mm)
             const timeSec = kiri.time();
             const filamentMM = kiri.filament();
             const filamentM = filamentMM / 1000;
 
-            // Send back results to parent window
             window.parent.postMessage({
               type: 'slice-result',
               printTimeSeconds: timeSec,
