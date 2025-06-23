@@ -2,54 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Kiri:Moto Hidden Slicer</title>
-  <style> body, html { margin:0; padding:0; height:100%; overflow:hidden; } #app { display:none; } </style>
+  <title>Headless Kiri:Moto</title>
+  <script src="https://grid.space/js/kiri.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #0f0;
+      padding: 20px;
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
-
-  <script src="https://grid.space/code/kiri.js"></script>
+  <h3>BAMBU MODULE RUNNING</h3>
   <script>
-    console.log('BAMBU MODULE RUNNING');
+    console.log("✅ Headless Kiri:Moto Loaded");
 
-    const settings = {
-      printer: 'bambu-p1s',
-      profile: 'bambu-20-standard', // Adjust if needed
-      units: 'mm',
-      filamentDiameter: 1.75,
-      layerHeight: 0.2,
-      infillPercent: 15,
-      printSpeed: 60
-    };
+    function sliceAndReport(fileData) {
+      let engine = KIRI;
 
-    kiri.ready(() => {
-      console.log('✅ Headless Kiri:Moto Loaded');
-      document.getElementById('app').style.display = 'none';
+      engine.init(null, window, function() {
+        const settings = engine.conf();
 
-      window.addEventListener('message', async (event) => {
-        if (!event.data || !event.data.type) return;
+        settings.mode = "FDM";
+        settings.device = "Bambu P1S";
+        settings.process = Object.assign({}, settings.process, {
+          layerHeight: 0.2,
+          sliceHeight: 0.2,
+          sliceShells: 3,
+          sliceTopLayers: 3,
+          sliceBottomLayers: 3,
+          sliceFillDensity: 0.15,
+          sliceFillPattern: "hex",
+          printSpeed: 60,
+          material: "PLA"
+        });
 
-        if (event.data.type === 'slice-stl') {
-          try {
-            const { fileBuffer } = event.data;
+        engine.platform.clear();
 
-            await kiri.sliceBuffer(fileBuffer, settings);
+        engine.loadFile(fileData, function(vertices) {
+          console.log("✅ Model loaded for slicing", vertices);
 
-            const timeSec = kiri.time();
-            const filamentMM = kiri.filament();
-            const filamentM = filamentMM / 1000;
+          engine.platform.compute(function(update) {
+            if (update.done) {
+              const report = engine.platform.exportData();
+              const time = report.time.toFixed(2);
+              const filamentMM = report.filament;
+              const filamentMeters = (filamentMM / 1000).toFixed(2);
 
-            window.parent.postMessage({
-              type: 'slice-result',
-              printTimeSeconds: timeSec,
-              filamentMM,
-              filamentM
-            }, '*');
-          } catch (e) {
-            window.parent.postMessage({ type: 'slice-error', error: e.message }, '*');
-          }
-        }
+              const message = {
+                timeMinutes: time,
+                filamentMeters: filamentMeters
+              };
+
+              window.parent.postMessage({ type: "slice-result", data: message }, "*");
+            }
+          });
+        });
       });
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "slice-file") {
+        const stlData = event.data.file;
+        sliceAndReport(stlData);
+      }
     });
   </script>
 </body>
