@@ -17,10 +17,9 @@
   <div id="status"></div>
   <pre id="output"></pre>
 
-  <!-- Load Kiri:Moto library from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/kiri-moto@0.24.12/kiri.min.js"></script>
+  <script type="module">
+    import KIRI from 'https://cdn.jsdelivr.net/npm/kiri-moto@0.24.12/kiri.min.js';
 
-  <script>
     const fileInput = document.getElementById('fileInput');
     const sliceBtn = document.getElementById('sliceBtn');
     const statusDiv = document.getElementById('status');
@@ -44,7 +43,6 @@
       const file = fileInput.files[0];
       const arrayBuffer = await file.arrayBuffer();
 
-      // Initialize Kiri engine
       if (!engine) engine = new KIRI.Driver();
 
       statusDiv.textContent = 'Loading STL...';
@@ -53,19 +51,17 @@
 
         statusDiv.textContent = 'Slicing... (this may take a while)';
 
-        // Set slicing parameters (example print profile)
         engine.settings.set({
           layerHeight: 0.2,
           nozzleDiameter: 0.4,
           printSpeed: 60,
           infillDensity: 0.15,
           filamentDiameter: 1.75,
-          filamentDensity: 1.24 // PLA approx
+          filamentDensity: 1.24
         });
 
         const result = await engine.slice();
 
-        // result.stats contains print time (seconds) and filament (mm)
         const timeMinutes = (result.stats.time / 60).toFixed(1);
         const filamentMeters = (result.stats.filament / 1000).toFixed(2);
 
