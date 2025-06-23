@@ -1,110 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Kiri:Moto Headless Bambu</title>
-  <script src="https://grid.space/code/kiri.js"></script>
-  <style>
-    body { font-family: sans-serif; padding: 1em; }
-    #output { margin-top: 1em; white-space: pre-wrap; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kiri:Moto Headless Slicer</title>
+
+<!-- Hide all UI -->
+<style>
+  html, body, #container, canvas, #kiri-top, #kiri-bottom, #kiri-left, #kiri-right {
+    display: none !important;
+  }
+</style>
+
 </head>
 <body>
-  <h2>Bambu Slicer (0.20mm)</h2>
-  <input type="file" id="fileInput" accept=".stl">
-  <div id="output"></div>
 
-  <script>
-    console.log("✅ Bambu UI-Hidden Kiri:Moto Running");
-    let kiriLoaded = false;
+<div id="container"></div>
 
-    function estimateVolume(points) {
-      // Convex hull estimate fallback if needed
-      return 0;
-    }
+<script src="https://grid.space/code/kiri.js"></script>
+<script>
+  console.log("BAMBU MODULE RUNNING");
 
-    function estimateFilament(volume_mm3) {
-      const filamentDiameter = 1.75; // mm
-      const filamentRadius = filamentDiameter / 2;
-      const filamentArea = Math.PI * filamentRadius ** 2; // mm^2
-      const filamentLength = volume_mm3 / filamentArea; // mm
-      return filamentLength / 1000; // meters
-    }
+  // Wait for Kiri to be ready
+  function waitForKiri() {
+    return new Promise(resolve => {
+      let tries = 0;
+      (function check() {
+        if (window.kiri && window.kiri.init) {
+          resolve();
+        } else if (tries++ < 100) {
+          setTimeout(check, 50);
+        } else {
+          console.error("Kiri failed to load.");
+        }
+      })();
+    });
+  }
 
-    function showOutput(text) {
-      document.getElementById('output').textContent = text;
-    }
+  async function run() {
+    await waitForKiri();
 
-    document.getElementById('fileInput').addEventListener('change', function (evt) {
-      const file = evt.target.files[0];
-      if (!file || !kiriLoaded) return;
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const stlData = e.target.result;
-
-        kiri.loadFile({ name: file.name, buffer: stlData }, function () {
-          const device = kiri.api.device.get();
-
-          kiri.api.mode.set("FDM");
-          kiri.api.view.hide(); // Hide UI
-
-          // Apply Bambu Lab P1S .20mm standard-ish settings
-          kiri.api.config.set({
-            sliceHeight: 0.2,
-            sliceShells: 2,
-            sliceFillSpacing: 2.4, // ~15% infill
-            sliceFillType: "hex",
-            sliceTopLayers: 3,
-            sliceBottomLayers: 3,
-            sliceSolidMinArea: 1,
-            sliceSupportEnable: false,
-            sliceSupportDensity: 0.15,
-            sliceSupportOffset: 0.2,
-            sliceSupportArea: 1,
-            sliceThinWall: true,
-            sliceRaftLayers: 0,
-            outputClockwise: true,
-            outputOriginCenter: false,
-            printSpeed: 60,
-            printFirstLayerSpeed: 30,
-            printLayerRetract: 1.5,
-            printRetractSpeed: 5,
-            printExtrudeRate: 0.045, // close to Bambu default
-            gcodeLaserOn: '',
-            gcodeLaserOff: '',
-          });
-
-          kiri.api.slice(function (sliced) {
-            const layers = kiri.api.widgets[0].slices;
-            let totalTime = 0;
-            let totalVolume = 0;
-
-            for (const layer of layers) {
-              totalTime += layer.time || 0;
-              totalVolume += layer.volume || 0;
-            }
-
-            const timeMinutes = (totalTime / 60).toFixed(1);
-            const filamentMeters = estimateFilament(totalVolume).toFixed(2);
-
-            showOutput(`Estimated print time: ${timeMinutes} minutes\nEstimated filament used: ${filamentMeters} meters`);
-          });
-        });
-      };
-      reader.readAsArrayBuffer(file);
+    // Init Kiri in hidden UI mode
+    kiri.init({
+      mode: 'FDM', // FDM slicing mode
+      profile: 'bambu20', // Custom profile name (we'll define)
+      ui: false // Not showing UI (but we hide with CSS anyway)
     });
 
-    window.addEventListener("load", function () {
-      kiri.init({
-        onload: () => {
-          kiriLoaded = true;
-          console.log("✅ Headless Kiri:Moto Loaded");
-        },
-        container: document.body,
-        view: "hide"
-      });
-    });
-  </script>
+    // Add Bambu P1S 0.20mm standard profile
+    kiri.conf.profile.bambu20 = {
+      layerHeight: 0.20,
+      nozzleSize: 0.40,
+      printSpeed: 60,
+      filamentDiameter: 1.75,
+      filamentDensity: 1.24, // PLA approx g/cm3
+      extrusionMultiplier: 1.0,
+      travelSpeed: 150,
+      infillDensity: 0.15,
+      retractionDistance: 5,
+      retractionSpeed: 40,
+      nozzleTemp: 205,
+      bedTemp: 60,
+      // Other params can be added as needed
+    };
+
+    console.log("✅ Headless Kiri:Moto Loaded");
+
+    // Listen for STL file data from parent
+    window.addEventListener("message", async (event) => {
+      if (!event.data || event.data.type !== 'stl-file') return;
+
+      try {
+        console.log("Received STL file data, slicing...");
+
+        // Load STL file as ArrayBuffer
+        const fileBuffer = event.data.buffer;
+
+        // Load the STL mesh into Kiri
+        await kiri.open(fileBuffer);
+
+        // Slice the model with bambu20 profile
+        await kiri.slice({ profile: 'bambu20' });
+
+        // After slicing, extract info
+        const timeSeconds = kiri.getTime();
+        const filamentMm = kiri.getFilament();
+
+        // Convert filament length to meters
+        const filamentMeters = filamentMm / 1000;
+
+        console.log("Print time (seconds):", timeSeconds);
+        console.log("Filament length (meters):", filamentMeters.toFixed(2));
+
+        // Post results back to parent
+        window.parent.postMessage({
+          type: 'slice-result',
+          timeSeconds,
+          filamentMeters
+        }, "*");
+
+      } catch(e) {
+        console.error("Error during slicing:", e);
+        window.parent.postMessage({
+          type: 'slice-error',
+          message: e.message || e.toString()
+        }, "*");
+      }
+    }, false);
+  }
+
+  run();
+</script>
+
 </body>
 </html>
