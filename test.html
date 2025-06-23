@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kiri:Moto Simple Slicer Quote</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
+    #status { margin-top: 1rem; }
+    button, input { font-size: 1rem; padding: 0.5rem; }
+  </style>
+</head>
+<body>
+
+  <h1>Kiri:Moto Slicer Quote Demo</h1>
+  <input type="file" id="fileInput" accept=".stl" />
+  <button id="sliceBtn" disabled>Slice & Quote</button>
+  <div id="status"></div>
+  <pre id="output"></pre>
+
+  <!-- Load Kiri:Moto library from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/kiri-moto@0.24.12/kiri.min.js"></script>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const sliceBtn = document.getElementById('sliceBtn');
+    const statusDiv = document.getElementById('status');
+    const outputPre = document.getElementById('output');
+
+    let engine;
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        sliceBtn.disabled = false;
+        statusDiv.textContent = `Loaded file: ${fileInput.files[0].name}`;
+        outputPre.textContent = '';
+      }
+    });
+
+    sliceBtn.addEventListener('click', async () => {
+      if (!fileInput.files.length) return;
+      sliceBtn.disabled = true;
+      statusDiv.textContent = 'Reading file...';
+
+      const file = fileInput.files[0];
+      const arrayBuffer = await file.arrayBuffer();
+
+      // Initialize Kiri engine
+      if (!engine) engine = new KIRI.Driver();
+
+      statusDiv.textContent = 'Loading STL...';
+      try {
+        await engine.addFile('model.stl', new Uint8Array(arrayBuffer));
+
+        statusDiv.textContent = 'Slicing... (this may take a while)';
+
+        // Set slicing parameters (example print profile)
+        engine.settings.set({
+          layerHeight: 0.2,
+          nozzleDiameter: 0.4,
+          printSpeed: 60,
+          infillDensity: 0.15,
+          filamentDiameter: 1.75,
+          filamentDensity: 1.24 // PLA approx
+        });
+
+        const result = await engine.slice();
+
+        // result.stats contains print time (seconds) and filament (mm)
+        const timeMinutes = (result.stats.time / 60).toFixed(1);
+        const filamentMeters = (result.stats.filament / 1000).toFixed(2);
+
+        statusDiv.textContent = 'Slice complete!';
+        outputPre.textContent = 
+          `Estimated Print Time: ${timeMinutes} minutes\n` +
+          `Estimated Filament Usage: ${filamentMeters} meters\n` +
+          `Layers: ${result.stats.layers}\n` +
+          `Model Volume: ${result.stats.volume.toFixed(0)} mm³`;
+
+      } catch (err) {
+        statusDiv.textContent = 'Error during slicing: ' + err.message;
+      }
+      sliceBtn.disabled = false;
+    });
+  </script>
+</body>
+</html>
