@@ -1,64 +1,69 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>Kiri:Moto Headless</title>
-</head>
-<body>
-<script src="kiri.js"></script>
-<script>
-  console.log("✅ Headless Kiri:Moto Loaded");
+  <head>
+    <meta charset="UTF-8" />
+    <title>Kiri:Moto Headless</title>
+  </head>
+  <body>
+    <script type="module">
+      console.log("✅ Headless Kiri:Moto Loaded");
 
-  window.KIRI?.ready(() => {
-    const engine = KIRI.work;
+      // Load Kiri:Moto in module form
+      import("https://grid.space/code/kiri.module.js").then(({ KIRI }) => {
+        console.log("🧠 KIRI module loaded");
 
-    // Listen for file upload from Squarespace iframe
-    window.addEventListener("message", async (e) => {
-      const { type, file } = e.data || {};
-      if (type !== "slice" || !file) return;
+        const engine = KIRI.newEngine();
+        engine.sync(); // Ensure ready before use
 
-      const reader = new FileReader();
-      reader.onload = async function (event) {
-        const arrayBuffer = event.target.result;
+        window.addEventListener("message", async (event) => {
+          const file = event.data;
+          if (!(file instanceof File)) return;
 
-        engine.init({
-          platform: { x: 256, y: 256 }, // Bambu P1S default
-          device: "FDM",
-          mode: "FDM",
-          fdm: {
-            nozzle: 0.4,
-            sliceHeight: 0.2,
-            shellCount: 2,
-            fillDensity: 0.15,
-            fillType: "hex",
-            printSpeed: 60,
-            material: "PLA",
-            filamentSize: 1.75,
-            filamentDensity: 1.24
-          }
+          console.log("📥 STL file received:", file.name);
+
+          const buffer = await file.arrayBuffer();
+
+          const settings = {
+            process: {
+              // Simulate Bambu Lab 0.20mm standard profile
+              sliceHeight: 0.2,
+              sliceShells: 2,
+              sliceTopLayers: 5,
+              sliceBottomLayers: 5,
+              sliceFillSparse: 15,
+              sliceFillType: "hex",
+              sliceSupportEnable: false
+            },
+            device: {
+              bedWidth: 256,
+              bedDepth: 256,
+              bedHeight: 256,
+              extrudeFilament: 1.75,
+              nozzle: 0.4
+            },
+            processName: "bambu-0.20mm-standard"
+          };
+
+          console.log("🧮 Slicing started...");
+
+          const result = await engine.sliceFile(buffer, settings);
+
+          const { stats } = result;
+          const minutes = (stats.printTime || 0).toFixed(1);
+          const meters = ((stats.filament || 0) / 1000).toFixed(2);
+
+          console.log(`✅ Slicing complete: ${minutes} min, ${meters} m`);
+
+          // Send back to parent
+          parent.postMessage(
+            {
+              printTimeMinutes: minutes,
+              filamentMeters: meters
+            },
+            "*"
+          );
         });
-
-        const mesh = await KIRI.codec.stl.toObject(arrayBuffer);
-        engine.slice([mesh], (data) => {
-          const { stats } = data;
-
-          // Calculate filament length in meters
-          const mmLength = stats.filament || 0;
-          const meters = (mmLength / 1000).toFixed(2);
-          const minutes = Math.round(stats.time / 60);
-
-          // Send result to parent
-          parent.postMessage({
-            type: "result",
-            time: minutes,
-            length: meters
-          }, "*");
-        });
-      };
-
-      reader.readAsArrayBuffer(file);
-    });
-  });
-</script>
-</body>
+      });
+    </script>
+  </body>
 </html>
