@@ -1,74 +1,69 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Kiri Headless Slicer</title>
-  <script src="https://grid.space/code/kiri.js"></script>
-</head>
-<body>
-<script>
-  // Initialize Kiri once the global script is loaded
-  function initKiri() {
-    if (!window.kiri) {
-      setTimeout(initKiri, 50);
-      return;
-    }
-    
-    kiri.init({
-      baseURL: 'https://designgibbs.github.io/', // Your GitHub Pages root, adjust if needed
-      mode: 'FDM',
-      config: {
-        device: {
-          bedWidth: 256,
-          bedDepth: 256,
-          bedHeight: 256,
-          nozzle: 0.4,
-          filament: 1.75
-        },
-        base: {
-          stock: { x: 256, y: 256, z: 256, center: true }
-        },
-        process: {
-          sliceHeight: 0.2,
-          sliceShells: 3,
-          sliceFillSparse: 0.15,
-          sliceFillType: 'hex',
-          sliceSupportEnable: false
-        },
-        print: {
-          printSpeed: 60,
-          retractionSpeed: 25
-        }
-      },
-      onready: () => {
-        // Listen for STL data from parent page
-        window.addEventListener('message', async (event) => {
-          if (!event.data || !event.data.stl) return;
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Kiri:Moto Headless</title>
+  </head>
+  <body>
+    <script type="module">
+      console.log("✅ Headless Kiri:Moto Loaded");
 
-          try {
-            // Decode base64 STL to Uint8Array
-            const decoded = Uint8Array.from(atob(event.data.stl), c => c.charCodeAt(0));
-            // Load STL into Kiri slicer
-            await kiri.api.load({ name: 'model.stl', array: decoded });
-            // Slice model
-            await kiri.api.slice();
-            // Get stats: time (seconds) and weight (grams)
-            const stats = kiri.api.export();
-            // Send results back to parent
-            parent.postMessage({
-              printTime: Math.ceil(stats.time / 60),  // convert seconds to minutes, rounded up
-              grams: stats.weight.toFixed(1)          // 1 decimal place filament weight
-            }, '*');
-          } catch (e) {
-            // Send error back to parent if slicing failed
-            parent.postMessage({ error: e.message }, '*');
-          }
+      // Load Kiri:Moto in module form
+      import("https://grid.space/code/kiri.module.js").then(({ KIRI }) => {
+        console.log("🧠 KIRI module loaded");
+
+        const engine = KIRI.newEngine();
+        engine.sync(); // Ensure ready before use
+
+        window.addEventListener("message", async (event) => {
+          const file = event.data;
+          if (!(file instanceof File)) return;
+
+          console.log("📥 STL file received:", file.name);
+
+          const buffer = await file.arrayBuffer();
+
+          const settings = {
+            process: {
+              // Simulate Bambu Lab 0.20mm standard profile
+              sliceHeight: 0.2,
+              sliceShells: 2,
+              sliceTopLayers: 5,
+              sliceBottomLayers: 5,
+              sliceFillSparse: 15,
+              sliceFillType: "hex",
+              sliceSupportEnable: false
+            },
+            device: {
+              bedWidth: 256,
+              bedDepth: 256,
+              bedHeight: 256,
+              extrudeFilament: 1.75,
+              nozzle: 0.4
+            },
+            processName: "bambu-0.20mm-standard"
+          };
+
+          console.log("🧮 Slicing started...");
+
+          const result = await engine.sliceFile(buffer, settings);
+
+          const { stats } = result;
+          const minutes = (stats.printTime || 0).toFixed(1);
+          const meters = ((stats.filament || 0) / 1000).toFixed(2);
+
+          console.log(`✅ Slicing complete: ${minutes} min, ${meters} m`);
+
+          // Send back to parent
+          parent.postMessage(
+            {
+              printTimeMinutes: minutes,
+              filamentMeters: meters
+            },
+            "*"
+          );
         });
-      }
-    });
-  }
-
-  initKiri();
-</script>
-</body>
+      });
+    </script>
+  </body>
 </html>
