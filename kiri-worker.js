@@ -1,1 +1,1 @@
-// Real kiri-worker.js should be included here.
+// Dummy kiri-worker.js placeholder

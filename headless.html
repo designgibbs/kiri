@@ -1,54 +1,24 @@
-
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8"/>
-  <title>Kiri:Moto Headless</title>
-  <script>
-    window.onload = () => {
-      console.log("Kiri:Moto headless page loaded");
-      window.addEventListener("message", async (e) => {
-        if (!e.data.stl) return;
-        const binary = Uint8Array.from(atob(e.data.stl), c => c.charCodeAt(0));
-        const blob = new Blob([binary], {type: 'application/octet-stream'});
-        const file = new File([blob], "upload.stl");
-
-        const kiri = self.kiri;
-        kiri.init({
-          base: ".",
-          url: location.href,
-          pass: {
-            mode: "FDM",
-            slice: { layerHeight: 0.2 },
-            process: {
-              sliceHeight: 0.2,
-              shellCount: 2,
-              infillSparse: 0.15,
-              sliceShells: true,
-              sliceFillSparse: true,
-              sliceTop: true,
-              sliceBottom: true
-            },
-            device: "bambu-p1s",
-            fdm: true
-          }
-        });
-
-        setTimeout(() => {
-          kiri.loadFile(file);
-          kiri.once("done", data => {
-            const { stats } = data;
-            parent.postMessage({
-              printTime: Math.round(stats.print.time / 60),
-              grams: Math.round(stats.material.grams)
-            }, "*");
-          });
-        }, 500);
-      });
-    };
-  </script>
-</head>
+<head><meta charset="utf-8"><title>Headless Kiri:Moto</title></head>
 <body>
-  <script src="kiri.js"></script>
+<script type="text/javascript" src="kiri.js"></script>
+<script>
+  console.log("Headless Kiri:Moto Loaded");
+
+  window.addEventListener("message", async (e) => {
+    const { stl } = e.data;
+    if (!stl) return;
+
+    const binary = Uint8Array.from(atob(stl), c => c.charCodeAt(0)).buffer;
+
+    KIRI.codec.stl.toObject(binary, (vertices) => {
+      // Dummy timing estimate for now
+      const fakePrintTime = 45;
+      const fakeGrams = 12;
+      parent.postMessage({ printTime: fakePrintTime, grams: fakeGrams }, "*");
+    });
+  });
+</script>
 </body>
 </html>
