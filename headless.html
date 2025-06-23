@@ -2,77 +2,69 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Kiri:Moto Headless - Bambu .20mm Standard</title>
-</head>
-<body>
-<script type="module">
-  import { KIRI } from 'https://grid.space/code/kiri.module.js';
+  <title>Kiri:Moto Headless Slicer</title>
+  <script type="module">
+    import { KIRI } from 'https://grid.space/code/kiri.js';
 
-  console.log('Headless Kiri:Moto Loaded');
+    let kiri;
 
-  // Initialize KIRI instance
-  const app = new KIRI();
+    function setup() {
+      // Init Kiri headless
+      kiri = new KIRI();
 
-  // Bambu P1S .20mm standard profile (adjust params as needed)
-  const bambuProfile = {
-    printer: 'bambu_p1s',
-    layerHeight: 0.20,
-    printSpeed: 60,
-    filamentDiameter: 1.75,  // mm
-    filamentDensity: 1.24,   // g/cm3 for PLA
-    infillDensity: 0.15
-  };
-
-  app.set('printer', bambuProfile.printer);
-  app.set('slice', {
-    layerHeight: bambuProfile.layerHeight,
-    printSpeed: bambuProfile.printSpeed,
-    infillDensity: bambuProfile.infillDensity,
-    filamentDiameter: bambuProfile.filamentDiameter,
-    filamentDensity: bambuProfile.filamentDensity
-  });
-
-  app.start();
-
-  window.addEventListener('message', async (event) => {
-    if (!event.data?.stl) return;
-    try {
-      const base64 = event.data.stl;
-      const binaryStr = atob(base64);
-      const len = binaryStr.length;
-      const buffer = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        buffer[i] = binaryStr.charCodeAt(i);
-      }
-
-      app.clear();
-      app.addPart(buffer.buffer, { filename: 'upload.stl' });
-
-      await app.slice();
-
-      const stats = app.stats || {};
-
-      // filament grams
-      const grams = stats.filament || 0;
-
-      // filament length in meters = volume (cm3) / cross-sectional area (cm2)
-      const density = bambuProfile.filamentDensity;
-      const diameterMM = bambuProfile.filamentDiameter;
-      const radiusCM = (diameterMM / 2) / 10;
-      const volumeCM3 = grams / density;
-      const lengthM = volumeCM3 / (Math.PI * radiusCM * radiusCM);
-
-      window.parent.postMessage({
-        printTime: Math.round(stats.time || 0),  // seconds
-        filamentGrams: grams.toFixed(1),
-        filamentMeters: lengthM.toFixed(2)
-      }, '*');
-
-    } catch (err) {
-      console.error('Error slicing:', err);
-      window.parent.postMessage({ error: err.message }, '*');
+      // Use Bambu Lab X1C standard 0.20mm print profile
+      kiri.settings.set({
+        slicer: 'slic3r', // default slicer engine
+        layerHeight: 0.2,
+        filamentDiameter: 1.75,
+        nozzleDiameter: 0.4,
+        printSpeed: 60,
+        infillPercent: 15,
+        retractionDistance: 5,
+        materialDensity: 1.24 // PLA approx
+      });
     }
-  });
-</script>
-</body>
+
+    function base64ToBuffer(base64) {
+      const binary = atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    // Handle incoming STL from parent
+    window.addEventListener('message', async (event) => {
+      if (!event.data.stl) return;
+      try {
+        // Decode base64 STL file data
+        const buffer = base64ToBuffer(event.data.stl);
+
+        // Add model from buffer
+        const model = await kiri.add(buffer, 'stl');
+
+        // Slice model with current settings
+        const result = await kiri.slice();
+
+        // Extract print time (minutes) and filament used (grams)
+        const timeMin = (result.time / 60).toFixed(1);
+        const grams = (result.filament / 1000).toFixed(1);
+
+        // Send results back to parent window
+        window.parent.postMessage({ printTime: timeMin, grams }, '*');
+      } catch (e) {
+        window.parent.postMessage({ error: e.message }, '*');
+      }
+    });
+
+    // Initialize on load
+    window.onload = () => {
+      setup();
+      console.log('Headless Kiri:Moto Loaded');
+    };
+  </script>
+</head>
+<body></body>
 </html>
